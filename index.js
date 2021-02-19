@@ -42,9 +42,6 @@ app.get('/-/users', function (req, res) {
 });
 app.get('/-/iourl', function (req, res) {
     var protocol = "wss";
-    if(req.protocol == 'http'){
-        protocol = "ws";
-    }
     res.send( protocol + '://' + req.get('Host'));
 });
 srv.listen(port,function(){
