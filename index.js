@@ -87,21 +87,20 @@ io.on('connection', function (socket) {
         }
         else {
             //console.log('===== message broadcast all');
-            socket.broadcast.emit(type, message);
+            //socket.broadcast.emit(type, message);
         }
     }
 
     // When a user send a SDP message
     // broadcast to all users in the room
     socket.on('message', function (message) {
+        console.log(date + 'id=' + socket.id + ' Received Message: ' + JSON.stringify(message));
         if (!(message instanceof Object)){
             console.log("invalid data");
             return;
         }
         var date = new Date();
         message.from = socket.id;
-        //console.log(date + 'id=' + socket.id + ' Received Message: ' + JSON.stringify(message));
-
         // get send target
         var target = message.sendto;
         if (target) {
