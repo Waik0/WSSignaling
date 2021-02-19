@@ -30,6 +30,12 @@ function OnEnter(){
     }
     var room = document.getElementById("roomname");
     console.log(room.value)
+    console.log(socket);
+    if (socket == undefined) {
+        console.log("no socket");
+    }else {
+        socket.disconnect();
+    }
     socket = io.connect(iourl);
     socket.on('connect',function(evt){
         socket.emit('enter', room.value);
@@ -66,4 +72,10 @@ function Ping(){
     lastPing = new Date();
     socket.emit('ping',{});
  
+}
+function Disconnect(){
+    if (socket == undefined) {
+        console.log("no socket");
+    }
+    socket.disconnect();
 }

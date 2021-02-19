@@ -41,7 +41,11 @@ app.get('/-/users', function (req, res) {
     res.send(users);
 });
 app.get('/-/iourl', function (req, res) {
-    res.send('wss://' + req.get('Host'));
+    var protocol = "wss";
+    if(req.protocol == 'http'){
+        protocol = "ws";
+    }
+    res.send( protocol + '://' + req.get('Host'));
 });
 srv.listen(port,function(){
     console.log('signaling server started on port:' + port);
