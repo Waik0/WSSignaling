@@ -54,9 +54,11 @@ ws.on('connection', (socket,req) => {
         socket.close();
         return;
     }
-    socket.send("connected");
+    var con = {};
+    con.command = "sys_connected";
+    con.from = socket.id;
+    socket.send(JSON.stringify(con));
     console.log('connected : ' + socket.id);
-
     //functions
     //ルーム生成
     function createRoom(room) {
