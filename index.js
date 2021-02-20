@@ -56,7 +56,7 @@ ws.on('connection', (socket,req) => {
     }
     var con = {};
     con.command = "sys_connected";
-    con.from = socket.id;
+    con.msgfrom = socket.id;
     socket.send(JSON.stringify(con));
     console.log('connected : ' + socket.id);
     //functions
@@ -116,7 +116,7 @@ ws.on('connection', (socket,req) => {
                 socket.close();
                 return;
             }
-            json.from = socket.id;
+            json.msgfrom = socket.id;
             for (let u in rooms[room]){
                 rooms[room][u].send(JSON.stringify(json));
             }
@@ -131,6 +131,7 @@ ws.on('connection', (socket,req) => {
     });
 
     socket.on('close', () => {
+        sendMsg('{command:"sys_leave"}');
         leaveRoom(socket.room);
         console.log('closed : ' + socket.id);
     });
