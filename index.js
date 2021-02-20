@@ -54,6 +54,7 @@ ws.on('connection', (socket,req) => {
         socket.close();
         return;
     }
+    socket.send("connected");
     console.log('connected : ' + socket.id);
 
     //functions
