@@ -2,18 +2,13 @@
 const PORT = process.env.PORT || 3000;
 var express = require('express');
 const basicAuth = require("express-basic-auth")
+var cookie = require('cookie');
+var WebSocket = require('ws');
 var app = express();
 var srv = require('http').Server(app);
-var io = require('socket.io')(srv);
-var port = PORT;
-const basicUserName = "test"
-const basicPassword = "test"
-// app.use(basicAuth({
-//     users: {
-//         'admin': 'admin',
-//         'unity': 'unity',
-//     }
-// }));
+const basicUserName = "wssig";
+const basicPassword = "test";
+//basicauth
 app.use(basicAuth({
     challenge: true,
     unauthorizedResponse: function(){
@@ -25,110 +20,143 @@ app.use(basicAuth({
         return userMatch & passMatch
     }
 }));
-app.set('view engine', 'ejs');
+//routing
 app.use('/static', express.static(__dirname + '/public'));
-app.get('/',function(req,res){
+app.get('/', function (req, res) {
     res.sendFile(__dirname + '/public/index.html');
 });
-app.get('/dashboard', function (req, res) {
-    res.send('hello world');
-});
-app.get('/debug', function (req, res) {
-    var url = req.baseUrl;
-    res.render('debug');
-});
+// app.get('/-/rooms', function (req, res) {
+//     res.send(rooms);
+// });
 app.get('/-/users', function (req, res) {
     res.send(users);
 });
-app.get('/-/iourl', function (req, res) {
-    var protocol = "wss";
-    res.send( protocol + '://' + req.get('Host'));
+var ws = new WebSocket.Server({
+    noServer : true
 });
-srv.listen(port,function(){
-    console.log('signaling server started on port:' + port);
-});
-
-//---------------------------------------------------
-//シグナリングサーバー
+var rooms = {};
 var users = {};
-function addUser(name, room) {
-    users[name] = room;
-}
-function removeUser(name) {
-    delete users[name];
-}
-// This callback function is called every time a socket
-// tries to connect to the server
-io.on('connection', function (socket) {
-    // ---- multi room ----
-    socket.on('enter', function (roomname) {
-        socket.join(roomname);
-        console.log('id=' + socket.id + ' enter room=' + roomname);
-        setRoomname(roomname);
-        addUser(socket.id,roomname);
-    });
-
-    function setRoomname(room) {
-        socket.roomname = room;
+ws.on('connection', (socket,req) => {
+    //onconnect
+    socket.id = req.headers['sec-websocket-key'];
+    users[socket.id] = "";
+    if(req.headers['cookie'] == undefined){
+        socket.close();
+        return;
     }
-
-    function getRoomname() {
-        var room = socket.roomname;
-        return room;
+    var parsedCookie = cookie.parse(req.headers['cookie']);
+    if(parsedCookie.create != undefined){
+        createRoom(parsedCookie.create);
     }
+    else if(parsedCookie.join != undefined){
+        joinRoom(parsedCookie.join)
+    }else{
+        socket.close();
+        return;
+    }
+    console.log('connected : ' + socket.id);
 
-    function emitMessage(type, message) {
-        // ----- multi room ----
-        var roomname = getRoomname();
-
-        if (roomname) {
-            //console.log('===== message broadcast to room -->' + roomname);
-            socket.broadcast.to(roomname).emit(type, message);
-        }
-        else {
-            //console.log('===== message broadcast all');
-            //socket.broadcast.emit(type, message);
+    //functions
+    //ルーム生成
+    function createRoom(room) {
+        if(rooms[room] == undefined){
+            console.log("create room : " + room);
+            rooms[room] = {};
+            joinRoom(room);
+        }else{
+            leaveRoom(room);
+            socket.close();
         }
     }
-
-    // When a user send a SDP message
-    // broadcast to all users in the room
-    socket.on('message', function (message) {
-        console.log(date + 'id=' + socket.id + ' Received Message: ' + JSON.stringify(message));
-        if (!(message instanceof Object)){
-            console.log("invalid data");
+    //ルーム入室
+    function joinRoom(room) {
+        if (rooms[room] == undefined) {
+            leaveRoom(room);
+            socket.close();
             return;
         }
-        var date = new Date();
-        message.from = socket.id;
-        // get send target
-        var target = message.sendto;
-        if (target) {
-            //console.log('===== message emit to -->' + target);
-            socket.to(target).emit('message', message);
+        console.log("join room  : " + room);
+        socket.room = room;
+        rooms[room][socket.id] = socket;
+        users[socket.id] = room;
+    }
+    //ルーム退室
+    function leaveRoom(room){
+        if(room == undefined){
             return;
         }
-
-        // broadcast in room
-        emitMessage('message', message);
-    });
-    socket.on('ping', function (message) {
-        //console.log("ping");
-        socket.emit('ping', message);
-    });
-    // When the user hangs up
-    // broadcast bye signal to all users in the room
-    socket.on('disconnect', function () {
-        // close user connection
-        console.log((new Date()) + ' Peer disconnected. id=' + socket.id);
-        removeUser(socket.id);
-        // --- emit ----
-        emitMessage('user disconnected', { id: socket.id });
-        // --- leave room --
-        var roomname = getRoomname();
-        if (roomname) {
-            socket.leave(roomname);
+        if(rooms[room] != undefined){
+            delete rooms[room][socket.id];
+            //console.log(Object.keys(rooms[room]).length);
+            if (Object.keys(rooms[room]).length <= 0) {
+                console.log("delete room : " + room);
+                delete rooms[room];
+            } 
         }
+        if (users[socket.id] != undefined) {
+            delete users[socket.id];
+        }
+        console.log("leave room : " + room);
+    }
+    //ルームか個人にメッセージ送信
+    function sendMsg(ms){
+        try {
+            var json = JSON.parse(ms);
+            var room = socket.room;
+            if ( room == undefined){
+                leaveRoom(room);
+                socket.close();
+            }
+            if (rooms[room] == undefined) {
+                console.log(room);
+                leaveRoom(room);
+                socket.close();
+                return;
+            }
+            json.from = socket.id;
+            for (let u in rooms[room]){
+                rooms[room][u].send(JSON.stringify(json));
+            }
+
+            //console.log("meessage : " + ms);
+        }catch (e){
+            console.log(e);
+        }
+    }
+    socket.on('message', ms => {
+        sendMsg(ms);
     });
 
+    socket.on('close', () => {
+        leaveRoom(socket.room);
+        console.log('closed : ' + socket.id);
+    });
 });
+srv.on('upgrade', function (request, socket, head) {
+    try {
+        var parsedCookie = cookie.parse(request.headers['cookie']);
+        if(parsedCookie.username == undefined || parsedCookie.password == undefined)
+        {
+            socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n');
+            socket.destroy();
+            return;
+        }
+        const userMatch = basicAuth.safeCompare(parsedCookie.username, basicUserName)
+        const passMatch = basicAuth.safeCompare(parsedCookie.password, basicPassword)
+        if (!(userMatch & passMatch)) {
+            socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n');
+            socket.destroy();
+            return;
+        }
+    }catch{
+        socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n');
+        socket.destroy();
+        return;
+    }
+    ws.handleUpgrade(request, socket, head, function (s) {
+        ws.emit('connection', s, request);
+    });
+});
+srv.listen(PORT, function () {
+    console.log('signaling server started on port:' + PORT);
+}); 

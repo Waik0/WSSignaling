@@ -39,14 +39,7 @@ async function getUsers(){
         // メッセージを取得しました
         let message = await response.text();
         setText(JSON.parse(message));
-        // setText({
-        //     "user1": "room1",
-        //     "user2": "room1",
-        //     "user3": "room2",
-        // });
     }
-
-    
 }
 async function subscribe() {
     while(true){
@@ -55,5 +48,4 @@ async function subscribe() {
     
     }
 }
-
 subscribe();
