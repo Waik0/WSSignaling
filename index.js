@@ -131,7 +131,7 @@ ws.on('connection', (socket,req) => {
     });
 
     socket.on('close', () => {
-        sendMsg('{command:"sys_leave"}');
+        sendMsg('{"command":"sys_leave"}');
         leaveRoom(socket.room);
         console.log('closed : ' + socket.id);
     });
