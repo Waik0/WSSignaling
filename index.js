@@ -120,8 +120,7 @@ ws.on('connection', (socket,req) => {
             for (let u in rooms[room]){
                 rooms[room][u].send(JSON.stringify(json));
             }
-
-            //console.log("meessage : " + ms);
+            console.log("meessage : " + ms);
         }catch (e){
             console.log(e);
         }
